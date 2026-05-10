@@ -22,6 +22,7 @@ function App() {
   // TODO [Basic] Inisialisasi layanan deteksi, kamera, dan generator fakta saat aplikasi dimuat
   useEffect(() => {
     let isMounted = true;
+    let progressTimer = null;
 
     const initServices = async () => {
       try {
@@ -30,19 +31,38 @@ function App() {
         const generator = new RootFactsService();
 
         actions.setServices({ camera, detector, generator });
-        actions.setModelStatus('Memuat Model AI...');
+        let progress = 0;
+        actions.setModelStatus(`Memuat Model AI... ${progress}%`);
 
-        // Load Model Deteksi dulu
+        progressTimer = setInterval(() => {
+          if (!isMounted) return;
+          progress = Math.min(progress + 5, 95);
+          actions.setModelStatus(`Memuat Model AI... ${progress}%`);
+        }, 250);
+
+        // Load model deteksi lebih dulu agar scan cepat tersedia.
         await detector.loadModel();
+        progress = 55;
+        if (isMounted) {
+          actions.setModelStatus(`Memuat Model AI... ${progress}%`);
+        }
+
+        // Load model fun fact agar fitur generatif siap dipakai.
+        await generator.loadModel();
+        progress = 100;
 
         if (isMounted) {
-          actions.setModelStatus('Model AI Siap');
+          actions.setModelStatus(`Model AI Siap (${progress}%)`);
         }
       } catch (error) {
         console.error('Gagal inisialisasi:', error);
         if (isMounted) {
           actions.setError('Gagal memuat model. Cek koneksi internetmu.');
           actions.setModelStatus('Error');
+        }
+      } finally {
+        if (progressTimer) {
+          clearInterval(progressTimer);
         }
       }
     };
@@ -52,6 +72,9 @@ function App() {
     // TODO [Basic] Bersihkan sumber daya saat komponen ditinggalkan
     return () => {
       isMounted = false;
+      if (progressTimer) {
+        clearInterval(progressTimer);
+      }
       if (state.services.camera) {
         state.services.camera.stopCamera();
       }

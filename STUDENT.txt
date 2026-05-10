@@ -1,1 +1,1 @@
-APP_URL=
+APP_URL=https://YOUR-NETLIFY-APP.netlify.app

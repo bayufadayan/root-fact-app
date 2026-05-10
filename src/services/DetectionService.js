@@ -2,50 +2,53 @@ import * as tf from '@tensorflow/tfjs';
 import '@tensorflow/tfjs-backend-webgpu';
 import * as mobilenet from '@tensorflow-models/mobilenet';
 
+const VEGETABLE_LABEL_MAP = [
+  { keyword: 'carrot', label: 'Carrot' },
+  { keyword: 'cucumber', label: 'Cucumber' },
+  { keyword: 'broccoli', label: 'Broccoli' },
+  { keyword: 'cabbage', label: 'Cabbage' },
+  { keyword: 'cauliflower', label: 'Cauliflower' },
+  { keyword: 'bell pepper', label: 'Paprika' },
+  { keyword: 'chili', label: 'Chilli' },
+  { keyword: 'eggplant', label: 'Eggplant' },
+  { keyword: 'garlic', label: 'Garlic' },
+  { keyword: 'onion', label: 'Onion' },
+  { keyword: 'potato', label: 'Potato' },
+  { keyword: 'spinach', label: 'Spinach' },
+  { keyword: 'lettuce', label: 'Lettuce' },
+  { keyword: 'corn', label: 'Corn' },
+  { keyword: 'peas', label: 'Peas' },
+  { keyword: 'ginger', label: 'Ginger' },
+  { keyword: 'beet', label: 'Beetroot' },
+  { keyword: 'turnip', label: 'Turnip' }
+];
+
 export class DetectionService {
   constructor() {
     this.model = null;
     this.labels = [];
-    this.modelType = 'unknown';
+    this.modelType = 'mobilenet';
   }
 
   async loadModel() {
     try {
-      // Backend adaptive: prefer WebGPU, fallback WebGL.
-      if (navigator.gpu) {
+      // Windows Chrome masih menampilkan warning WebGPU requestAdapter.
+      // Untuk pengalaman bersih, gunakan WebGL di Windows.
+      const isWindows = navigator.userAgent.toLowerCase().includes('windows');
+      if (!isWindows && navigator.gpu) {
         await tf.setBackend('webgpu');
       } else {
         await tf.setBackend('webgl');
       }
       await tf.ready();
 
-      const localModelURL = '/model/model.json';
-      const metadataURL = '/model/metadata.json';
-
-      try {
-        // First, try Teachable Machine local model if available.
-        const [loadedModel, metadataResponse] = await Promise.all([
-          tf.loadLayersModel(localModelURL),
-          fetch(metadataURL).then((res) => {
-            if (!res.ok) {
-              throw new Error('Metadata model lokal tidak ditemukan.');
-            }
-            return res.json();
-          })
-        ]);
-
-        this.model = loadedModel;
-        this.labels = metadataResponse.labels || [];
-        this.modelType = 'local';
-      } catch (localError) {
-        console.warn('Model lokal tidak valid/tersedia. Fallback ke MobileNet.', localError);
-        this.model = await mobilenet.load({
-          version: 2,
-          alpha: 1.0
-        });
-        this.labels = [];
-        this.modelType = 'mobilenet';
-      }
+      // Gunakan model yang pasti valid untuk mencegah crash di runtime.
+      this.model = await mobilenet.load({
+        version: 2,
+        alpha: 1.0
+      });
+      this.labels = [];
+      this.modelType = 'mobilenet';
 
       return { success: true, backend: tf.getBackend() };
     } catch (error) {
@@ -69,10 +72,11 @@ export class DetectionService {
       }
 
       const top = predictions[0];
+      const normalizedLabel = this.normalizeVegetableLabel(top.className);
       const confidence = Math.round(top.probability * 100);
       return {
         isValid: confidence >= 70,
-        className: top.className,
+        className: normalizedLabel,
         score: top.probability,
         confidence
       };
@@ -99,6 +103,13 @@ export class DetectionService {
       score: maxProbability,
       confidence: confidence
     };
+  }
+
+  normalizeVegetableLabel(rawLabel) {
+    const lowerLabel = rawLabel.toLowerCase();
+    const matched = VEGETABLE_LABEL_MAP.find(({ keyword }) => lowerLabel.includes(keyword));
+    if (matched) return matched.label;
+    return rawLabel.split(',')[0].trim();
   }
 
   isLoaded() { return !!this.model; }

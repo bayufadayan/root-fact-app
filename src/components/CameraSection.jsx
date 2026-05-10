@@ -51,7 +51,7 @@ function CameraSection({
     }
   };
 
-  const isModelReady = modelStatus === 'Model AI Siap';
+  const isModelReady = modelStatus.startsWith('Model AI Siap');
   const buttonDisabled = !isModelReady;
   const buttonText = isRunning ? 'Stop Scan' : 'Mulai Scan';
 
