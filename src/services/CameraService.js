@@ -16,7 +16,9 @@ export class CameraService {
 
   // TODO [Basic] Tambahkan konfigurasi kamera untuk mendapatkan daftar perangkat input video
   // TODO [Basic] Dapatkan constraints kamera berdasarkan konfigurasi dan kamera yang dipilih
-  async loadCameras() {}
+  async loadCameras() {
+
+  }
 
   // TODO [Basic] Memulai kamera dengan perangkat yang dipilih dan menampilkan pada elemen video
   async startCamera(selectedCameraId) {}
