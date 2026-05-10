@@ -72,11 +72,12 @@ export class DetectionService {
       }
 
       const top = predictions[0];
-      const normalizedLabel = this.normalizeVegetableLabel(top.className);
+      const { label, isVegetable } = this.normalizeVegetableLabel(top.className);
       const confidence = Math.round(top.probability * 100);
       return {
-        isValid: confidence >= 70,
-        className: normalizedLabel,
+        // MobileNet bukan model khusus sayuran, jadi threshold dibuat lebih realistis.
+        isValid: isVegetable && confidence >= 25,
+        className: label,
         score: top.probability,
         confidence
       };
@@ -108,8 +109,10 @@ export class DetectionService {
   normalizeVegetableLabel(rawLabel) {
     const lowerLabel = rawLabel.toLowerCase();
     const matched = VEGETABLE_LABEL_MAP.find(({ keyword }) => lowerLabel.includes(keyword));
-    if (matched) return matched.label;
-    return rawLabel.split(',')[0].trim();
+    if (matched) {
+      return { label: matched.label, isVegetable: true };
+    }
+    return { label: rawLabel.split(',')[0].trim(), isVegetable: false };
   }
 
   isLoaded() { return !!this.model; }
