@@ -36,7 +36,7 @@ function CameraSection({
   const handleCameraChange = (newCameraType) => {
     setCameraType(newCameraType);
     if (services.camera && services.camera.isActive()) {
-      services.camera.startCamera();
+      services.camera.startCamera(newCameraType);
     }
   };
 
@@ -95,7 +95,7 @@ function CameraSection({
           <button
             id="btn-toggle"
             className={`capture-btn ${isRunning ? 'scanning' : ''}`}
-            onClick={onToggleCamera}
+            onClick={() => onToggleCamera(cameraType)}
             disabled={buttonDisabled}
             aria-label={buttonText}
             style={{ opacity: buttonDisabled ? 0.6 : 1 }}
