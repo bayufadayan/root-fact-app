@@ -12,6 +12,9 @@ function App() {
   const { state, actions } = useAppState();
   const detectionCleanupRef = useRef(null);
   const isRunningRef = useRef(false);
+  const isMountedRef = useRef(true);
+  const hasAutoStartedRef = useRef(false);
+  const servicesRef = useRef(state.services);
   const [currentTone, setCurrentTone] = useState('normal');
 
   // Sinkronisasi ref dengan state supaya loop selalu dapat nilai terbaru
@@ -19,79 +22,25 @@ function App() {
     isRunningRef.current = state.isRunning;
   }, [state.isRunning]);
 
-  // TODO [Basic] Inisialisasi layanan deteksi, kamera, dan generator fakta saat aplikasi dimuat
   useEffect(() => {
-    let isMounted = true;
-    let progressTimer = null;
+    servicesRef.current = state.services;
+  }, [state.services]);
 
-    const initServices = async () => {
-      try {
-        const camera = new CameraService();
-        const detector = new DetectionService();
-        const generator = new RootFactsService();
+  const stopDetectionLoop = () => {
+    if (detectionCleanupRef.current) {
+      clearTimeout(detectionCleanupRef.current);
+      detectionCleanupRef.current = null;
+    }
+  };
 
-        actions.setServices({ camera, detector, generator });
-        let progress = 0;
-        actions.setModelStatus(`Memuat Model AI... ${progress}%`);
-
-        progressTimer = setInterval(() => {
-          if (!isMounted) return;
-          progress = Math.min(progress + 5, 95);
-          actions.setModelStatus(`Memuat Model AI... ${progress}%`);
-        }, 250);
-
-        // Load model deteksi lebih dulu agar scan cepat tersedia.
-        await detector.loadModel();
-        progress = 55;
-        if (isMounted) {
-          actions.setModelStatus(`Memuat Model AI... ${progress}%`);
-        }
-
-        // Load model fun fact agar fitur generatif siap dipakai.
-        await generator.loadModel();
-        progress = 100;
-
-        if (isMounted) {
-          actions.setModelStatus(`Model AI Siap (${progress}%)`);
-        }
-      } catch (error) {
-        console.error('Gagal inisialisasi:', error);
-        if (isMounted) {
-          actions.setError('Gagal memuat model. Cek koneksi internetmu.');
-          actions.setModelStatus('Error');
-        }
-      } finally {
-        if (progressTimer) {
-          clearInterval(progressTimer);
-        }
-      }
-    };
-
-    initServices();
-
-    // TODO [Basic] Bersihkan sumber daya saat komponen ditinggalkan
-    return () => {
-      isMounted = false;
-      if (progressTimer) {
-        clearInterval(progressTimer);
-      }
-      if (state.services.camera) {
-        state.services.camera.stopCamera();
-      }
-      if (detectionCleanupRef.current) {
-        clearTimeout(detectionCleanupRef.current);
-      }
-    };
-  }, []);
-
-  // TODO [Basic] Fungsi untuk memulai loop deteksi
   const startDetectionLoop = async () => {
-    const { camera, detector, generator } = state.services;
+    const { camera, detector, generator } = servicesRef.current;
 
-    if (!camera || !detector || !camera.isActive() || !isRunningRef.current) return;
+    if (!camera || !detector || !camera.isActive() || !isRunningRef.current) {
+      return;
+    }
 
     try {
-      // Ambil frame dari canvas (captureFrame) bukan dari video langsung
       const frame = camera.captureFrame();
 
       if (frame) {
@@ -100,19 +49,27 @@ function App() {
         if (isValidDetection(result)) {
           actions.setAppState('analyzing');
           actions.setDetectionResult(result);
+          actions.setFunFactData(null);
 
-          handleToggleCamera(); // Stop kamera
+          stopDetectionLoop();
+          camera.stopCamera();
+          actions.setRunning(false);
 
           setTimeout(async () => {
+            if (!isMountedRef.current) {
+              return;
+            }
+
             actions.setAppState('result');
-            actions.setFunFactData(null);
 
             try {
               if (generator && generator.isReady()) {
                 const fact = await generator.generateFacts(result.className);
                 actions.setFunFactData(fact);
+              } else {
+                actions.setFunFactData('error');
               }
-            } catch (err) {
+            } catch (error) {
               actions.setFunFactData('error');
             }
           }, APP_CONFIG.analyzingDelay);
@@ -132,46 +89,149 @@ function App() {
     }
   };
 
-  // TODO [Basic] Fungsi untuk memulai dan menghentikan kamera
   const handleToggleCamera = async (cameraType = 'default') => {
-    const { camera } = state.services;
-    if (!camera) return;
+    const { camera } = servicesRef.current;
 
-    if (state.isRunning) {
-      // Matiin Kamera
+    if (!camera) {
+      return;
+    }
+
+    if (camera.isActive() || isRunningRef.current) {
       actions.setRunning(false);
       camera.stopCamera();
-      if (detectionCleanupRef.current) {
-        clearTimeout(detectionCleanupRef.current);
-      }
-    } else {
-      // Nyalain Kamera
-      try {
-        actions.setError(null);
-        actions.resetResults(); // Balik ke state idle
+      stopDetectionLoop();
+      return;
+    }
 
-        await camera.startCamera(cameraType);
-        actions.setRunning(true);
+    try {
+      actions.setError(null);
+      actions.resetResults();
 
-        // Mulai loop prediksi dengan sedikit jeda biar stream siap
-        setTimeout(() => {
+      await camera.startCamera(cameraType);
+      actions.setRunning(true);
+
+      setTimeout(() => {
+        if (isMountedRef.current) {
           startDetectionLoop();
-        }, 500);
-      } catch (error) {
-        console.error(error);
-        actions.setError('Gagal mengakses kamera. Pastikan izin kamera diberikan.');
-      }
+        }
+      }, 350);
+    } catch (error) {
+      console.error(error);
+      actions.setError('Gagal mengakses kamera. Pastikan izin kamera diberikan.');
     }
   };
+
+  useEffect(() => {
+    let isMounted = true;
+    let progressTimer = null;
+
+    const initServices = async () => {
+      try {
+        const camera = new CameraService();
+        const detector = new DetectionService();
+        const generator = new RootFactsService();
+
+        actions.setServices({ camera, detector, generator: null });
+        let progress = 0;
+        actions.setModelStatus(`Memuat Model AI... ${progress}%`);
+
+        progressTimer = setInterval(() => {
+          if (!isMounted) return;
+          progress = Math.min(progress + 5, 95);
+          actions.setModelStatus(`Memuat Model AI... ${progress}%`);
+        }, 250);
+
+        // Load model deteksi lebih dulu agar scan cepat tersedia.
+        await detector.loadModel();
+        progress = 55;
+        if (isMounted) {
+          actions.setModelStatus(`Memuat Model AI... ${progress}%`);
+        }
+
+        progress = 100;
+
+        if (isMounted) {
+          actions.setServices({ camera, detector, generator: null });
+          actions.setModelStatus(`Model AI Siap (${progress}%)`);
+          isMountedRef.current = true;
+        }
+
+        // Model generatif diload di background agar kamera bisa langsung mulai scan.
+        generator.loadModel().then(() => {
+          if (!isMountedRef.current) {
+            return;
+          }
+
+          const currentServices = servicesRef.current;
+          actions.setServices({
+            camera: currentServices.camera,
+            detector: currentServices.detector,
+            generator
+          });
+        }).catch((error) => {
+          console.warn('Model fun fact gagal dimuat. Aplikasi lanjut mode deteksi.', error);
+        });
+      } catch (error) {
+        console.error('Gagal inisialisasi:', error);
+        if (isMounted) {
+          actions.setError('Gagal memuat model. Cek koneksi internetmu.');
+          actions.setModelStatus('Error');
+        }
+      } finally {
+        if (progressTimer) {
+          clearInterval(progressTimer);
+        }
+      }
+    };
+
+    initServices();
+
+    // TODO [Basic] Bersihkan sumber daya saat komponen ditinggalkan
+    return () => {
+      isMounted = false;
+      isMountedRef.current = false;
+      stopDetectionLoop();
+      if (progressTimer) {
+        clearInterval(progressTimer);
+      }
+
+      const { camera } = servicesRef.current;
+      if (camera) {
+        camera.stopCamera();
+      }
+    };
+  }, []);
+
+  // Kamera otomatis menyala sekali saat model siap untuk memicu izin kamera.
+  useEffect(() => {
+    if (!hasAutoStartedRef.current && state.modelStatus.includes('Model AI Siap') && state.services.camera) {
+      hasAutoStartedRef.current = true;
+
+      const autoStartTimer = setTimeout(() => {
+        if (isMountedRef.current) {
+          handleToggleCamera('default');
+        }
+      }, 1000);
+
+      return () => clearTimeout(autoStartTimer);
+    }
+  }, [state.modelStatus, state.services.camera]);
 
   // TODO [Advance] Fungsi untuk mengubah nada fakta yang dihasilkan
   const handleToneChange = (newTone) => {
     setCurrentTone(newTone);
-    const { generator } = state.services;
+    const { generator } = servicesRef.current;
     if (generator && generator.setTone) {
       generator.setTone(newTone);
     }
   };
+
+  useEffect(() => {
+    const { generator } = state.services;
+    if (generator && generator.setTone) {
+      generator.setTone(currentTone);
+    }
+  }, [state.services.generator, currentTone]);
 
   // TODO [Skilled] Fungsi untuk menyalin fakta ke clipboard
   const handleCopyFact = async () => {

@@ -11,6 +11,14 @@ export class CameraService {
 
   setVideoElement(videoElement) {
     this.video = videoElement;
+
+    // Jika stream sudah aktif lebih dulu, langsung pasang ke elemen video.
+    if (this.stream && this.video && !this.video.srcObject) {
+      this.video.srcObject = this.stream;
+      this.video.play().catch(() => {
+        // Browser bisa menolak autoplay sesaat; akan dipicu lagi setelah interaksi.
+      });
+    }
   }
 
   setCanvasElement(canvasElement) {

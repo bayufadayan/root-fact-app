@@ -3,6 +3,7 @@ import { TONE_CONFIG } from '../utils/config.js';
 
 // Opsional: Memastikan model ditarik dari Hugging Face Hub (CDN)
 env.allowLocalModels = false;
+env.useBrowserCache = true;
 
 export class RootFactsService {
   constructor() {
@@ -18,20 +19,14 @@ export class RootFactsService {
     if (this.isModelLoaded) return;
 
     try {
-      // Backend Adaptive: Menggunakan WebGPU jika tersedia, fallback ke WASM
-      let device = 'webgpu';
-      if (!navigator.gpu) {
-        console.warn('WebGPU tidak tersedia untuk Transformers.js, fallback ke WASM.');
-        device = 'wasm';
-      }
+      const device = navigator.gpu ? 'webgpu' : 'wasm';
 
-      // Inisialisasi pipeline dengan model text-generation yang ringan
       this.generator = await pipeline(
         'text2text-generation',
-        'Xenova/LaMini-Flan-T5-77M', // Model yang cukup ringan untuk dijalankan di peramban
+        'Xenova/LaMini-Flan-T5-77M',
         {
-          dtype: 'q4', // Sesuai tips submission agar model tidak terlalu berat
-          device: device
+          dtype: 'q4',
+          device
         }
       );
 
