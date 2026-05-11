@@ -2,9 +2,12 @@ import daStyle from 'eslint-config-dicodingacademy';
 import pluginReact from 'eslint-plugin-react';
 
 export default [
+  {
+    ignores: ['dist', 'node_modules', 'build', '.next', 'out', 'coverage', '*.min.js', '*.config.js', '.eslintignore'],
+  },
   daStyle,
   {
-    files: ['**/*.{js,jsx}'],
+    files: ['src/**/*.{js,jsx}'],
     plugins: {
       react: pluginReact,
     },
@@ -25,7 +28,6 @@ export default [
         version: 'detect',
       },
     },
-    ignores: ['dist', 'node_modules'],
     rules: {
       ...pluginReact.configs.recommended.rules,
       'react/react-in-jsx-scope': 'off',

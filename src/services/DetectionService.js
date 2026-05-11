@@ -75,7 +75,6 @@ export class DetectionService {
       const { label, isVegetable } = this.normalizeVegetableLabel(top.className);
       const confidence = Math.round(top.probability * 100);
       return {
-        // MobileNet bukan model khusus sayuran, jadi threshold dibuat lebih realistis.
         isValid: isVegetable && confidence >= 25,
         className: label,
         score: top.probability,
@@ -83,7 +82,7 @@ export class DetectionService {
       };
     }
 
-    const result = tf.tidy(() => {
+    const predictions = await tf.tidy(async () => {
       const tensor = tf.browser.fromPixels(imageElement)
         .resizeBilinear([224, 224])
         .toFloat()
@@ -94,8 +93,9 @@ export class DetectionService {
       return prediction.dataSync();
     });
 
+    const result = Array.from(predictions);
     const maxProbability = Math.max(...result);
-    const maxIndex = Array.from(result).indexOf(maxProbability);
+    const maxIndex = result.indexOf(maxProbability);
     const confidence = Math.round(maxProbability * 100);
 
     return {

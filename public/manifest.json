@@ -1,9 +1,11 @@
 {
-  "name": "Root Fact App",
+  "name": "Root Facts App",
   "short_name": "RootFacts",
   "description": "Aplikasi deteksi sayuran dengan AI Fun Fact",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#f9fafb",
   "theme_color": "#10b981",
   "icons": [
@@ -11,11 +13,13 @@
       "src": "/favicon.ico",
       "sizes": "64x64",
       "type": "image/x-icon"
-    },
+    }
+  ],
+  "screenshots": [
     {
-      "src": "/favicon.ico",
-      "sizes": "64x64",
-      "type": "image/x-icon"
+      "src": "/screenshots/screenshot1.png",
+      "sizes": "540x720",
+      "type": "image/png"
     }
   ]
 }
