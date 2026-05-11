@@ -1,7 +1,6 @@
 import { pipeline, env } from '@xenova/transformers';
 import { TONE_CONFIG } from '../utils/config.js';
 
-// Opsional: Memastikan model ditarik dari Hugging Face Hub (CDN)
 env.allowLocalModels = false;
 env.useBrowserCache = true;
 
@@ -13,8 +12,6 @@ export class RootFactsService {
     this.currentTone = TONE_CONFIG.defaultTone;
   }
 
-  // TODO [Basic] Muat model dan inisialisasi pipeline text2text-generation
-  // TODO [Advance] Implementasikan strategi Backend Adaptive
   async loadModel() {
     if (this.isModelLoaded) return;
 
@@ -38,21 +35,16 @@ export class RootFactsService {
     }
   }
 
-  // TODO [Advance] Konfigurasi tone fakta yang dihasilkan
   setTone(tone) {
     this.currentTone = tone;
   }
 
-  // TODO [Basic] Lakukan prediksi pada elemen gambar yang diberikan dan kembalikan hasilnya
-  // TODO [Skilled] Konfigurasikan parameter generasi berdasarkan kebutuhan
-  // TODO [Advance] Implemenasikan parameter tone untuk mengatur nada fakta yang dihasilkan
   async generateFacts(vegetableName) {
     if (!this.generator) throw new Error('Model Generative AI belum siap.');
 
     this.isGenerating = true;
 
     try {
-      // Kriteria 2: Karena keterbatasan, berikan prompt menggunakan bahasa Inggris.
       let toneInstruction = 'Make it interesting and educational.';
 
       switch (this.currentTone) {
@@ -69,7 +61,6 @@ export class RootFactsService {
 
       const prompt = `Tell me one short, unique fun fact about ${vegetableName}. ${toneInstruction}`;
 
-      // Parameter untuk menjaga performa (Kriteria Skilled)
       const result = await this.generator(prompt, {
         max_new_tokens: 150,
         temperature: 0.7,
@@ -91,7 +82,6 @@ export class RootFactsService {
     }
   }
 
-  // TODO [Basic] Periksa apakah model sudah dimuat dan siap digunakan
   isReady() {
     return this.isModelLoaded && !this.isGenerating;
   }
