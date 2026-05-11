@@ -16,6 +16,7 @@ function App() {
   const hasAutoStartedRef = useRef(false);
   const servicesRef = useRef(state.services);
   const [currentTone, setCurrentTone] = useState('normal');
+  const [factsStatus, setFactsStatus] = useState('');
 
   // Sinkronisasi ref dengan state supaya loop selalu dapat nilai terbaru
   useEffect(() => {
@@ -63,13 +64,14 @@ function App() {
             actions.setAppState('result');
 
             try {
-              if (generator && generator.isReady()) {
+              if (generator) {
                 const fact = await generator.generateFacts(result.className);
                 actions.setFunFactData(fact);
               } else {
                 actions.setFunFactData('error');
               }
             } catch (error) {
+              console.error('Gagal menghasilkan fakta:', error);
               actions.setFunFactData('error');
             }
           }, APP_CONFIG.analyzingDelay);
@@ -131,7 +133,7 @@ function App() {
         const detector = new DetectionService();
         const generator = new RootFactsService();
 
-        actions.setServices({ camera, detector, generator: null });
+        actions.setServices({ camera, detector, generator });
         let progress = 0;
         actions.setModelStatus(`Memuat Model AI... ${progress}%`);
 
@@ -143,34 +145,31 @@ function App() {
 
         // Load model deteksi lebih dulu agar scan cepat tersedia.
         await detector.loadModel();
-        progress = 55;
         if (isMounted) {
-          actions.setModelStatus(`Memuat Model AI... ${progress}%`);
-        }
-
-        progress = 100;
-
-        if (isMounted) {
-          actions.setServices({ camera, detector, generator: null });
-          actions.setModelStatus(`Model AI Siap (${progress}%)`);
-          isMountedRef.current = true;
+          actions.setModelStatus('Model AI Siap');
         }
 
         // Model generatif diload di background agar kamera bisa langsung mulai scan.
-        generator.loadModel().then(() => {
+        generator.loadModel((status) => {
+          if (isMounted) {
+            setFactsStatus(status);
+          }
+        }).then(() => {
           if (!isMountedRef.current) {
             return;
           }
 
-          const currentServices = servicesRef.current;
-          actions.setServices({
-            camera: currentServices.camera,
-            detector: currentServices.detector,
-            generator
-          });
+          setFactsStatus('');
         }).catch((error) => {
           console.warn('Model fun fact gagal dimuat. Aplikasi lanjut mode deteksi.', error);
+          if (isMounted) {
+            setFactsStatus('Fakta AI gagal dimuat');
+          }
         });
+
+        if (isMounted) {
+          isMountedRef.current = true;
+        }
       } catch (error) {
         console.error('Gagal inisialisasi:', error);
         if (isMounted) {
@@ -247,7 +246,7 @@ function App() {
 
   return (
     <div className="app-container">
-      <Header modelStatus={state.modelStatus} />
+      <Header modelStatus={state.modelStatus} secondaryStatus={factsStatus} />
 
       <main className="main-content">
         <CameraSection

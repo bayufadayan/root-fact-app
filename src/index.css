@@ -96,6 +96,13 @@ body {
   align-items: center;
 }
 
+.status-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+}
+
 .logo {
   display: flex;
   align-items: center;
@@ -119,6 +126,14 @@ body {
   border-radius: var(--radius-full);
   font-size: 0.75rem;
   color: var(--text-secondary);
+}
+
+.status-subtext {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  max-width: 220px;
+  text-align: right;
+  line-height: 1.2;
 }
 
 .status-dot {

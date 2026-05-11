@@ -1,6 +1,6 @@
 import { Sprout } from 'lucide-react';
 
-function Header({ modelStatus }) {
+function Header({ modelStatus, secondaryStatus }) {
   const isModelReady = modelStatus.startsWith('Model AI Siap');
 
   return (
@@ -11,9 +11,14 @@ function Header({ modelStatus }) {
           <span>RootFacts</span>
         </div>
 
-        <div className="status-pill">
-          <span className={`status-dot ${isModelReady ? 'active' : ''}`}></span>
-          <span>{modelStatus}</span>
+        <div className="status-meta">
+          <div className="status-pill">
+            <span className={`status-dot ${isModelReady ? 'active' : ''}`}></span>
+            <span>{modelStatus}</span>
+          </div>
+          {secondaryStatus && (
+            <span className="status-subtext">{secondaryStatus}</span>
+          )}
         </div>
       </div>
     </header>

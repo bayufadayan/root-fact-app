@@ -10,29 +10,67 @@ export class RootFactsService {
     this.isModelLoaded = false;
     this.isGenerating = false;
     this.currentTone = TONE_CONFIG.defaultTone;
+    this.loadPromise = null;
   }
 
-  async loadModel() {
-    if (this.isModelLoaded) return;
+  async loadModel(onProgress) {
+    if (this.isModelLoaded) return this.generator;
 
-    try {
-      const device = navigator.gpu ? 'webgpu' : 'wasm';
-
-      this.generator = await pipeline(
-        'text2text-generation',
-        'Xenova/LaMini-Flan-T5-77M',
-        {
-          dtype: 'q4',
-          device
-        }
-      );
-
-      this.isModelLoaded = true;
-      console.log('Model Generative AI berhasil dimuat.');
-    } catch (error) {
-      console.error('Gagal memuat model AI:', error);
-      throw error;
+    if (this.loadPromise) {
+      return this.loadPromise;
     }
+
+    this.loadPromise = (async () => {
+      try {
+        const device = navigator.gpu ? 'webgpu' : 'wasm';
+
+        if (typeof onProgress === 'function') {
+          onProgress('Memuat fakta AI... 0%');
+        }
+
+        this.generator = await pipeline(
+          'text2text-generation',
+          'Xenova/LaMini-Flan-T5-77M',
+          {
+            dtype: 'q4',
+            device,
+            progress_callback: (progress) => {
+              if (typeof onProgress !== 'function') {
+                return;
+              }
+
+              if (progress?.status === 'progress' && progress.file) {
+                const percent = Math.round(progress.progress || 0);
+                const label = progress.file.includes('decoder')
+                  ? 'Memuat fakta AI (decoder)'
+                  : progress.file.includes('encoder')
+                    ? 'Memuat fakta AI (encoder)'
+                    : 'Mengunduh fakta AI';
+
+                onProgress(`${label}... ${percent}%`);
+              }
+            }
+          }
+        );
+
+        this.isModelLoaded = true;
+        if (typeof onProgress === 'function') {
+          onProgress('Model AI Siap');
+        }
+
+        console.log('Model Generative AI berhasil dimuat.');
+        return this.generator;
+      } catch (error) {
+        this.generator = null;
+        this.isModelLoaded = false;
+        console.error('Gagal memuat model AI:', error);
+        throw error;
+      } finally {
+        this.loadPromise = null;
+      }
+    })();
+
+    return this.loadPromise;
   }
 
   setTone(tone) {
@@ -40,7 +78,9 @@ export class RootFactsService {
   }
 
   async generateFacts(vegetableName) {
-    if (!this.generator) throw new Error('Model Generative AI belum siap.');
+    if (!this.generator) {
+      await this.loadModel();
+    }
 
     this.isGenerating = true;
 

@@ -6,46 +6,77 @@ export class DetectionService {
     this.model = null;
     this.labels = [];
     this.modelType = 'custom';
+    this.loadPromise = null;
   }
 
   async loadModel() {
-    try {
-      const isDev = import.meta.env.DEV;
-      let preferredBackend = 'webgl';
-
-      if (navigator.gpu) {
-        preferredBackend = 'webgpu';
-      }
-
-      try {
-        await tf.setBackend(preferredBackend);
-      } catch (error) {
-        console.warn(`Gagal memakai backend ${preferredBackend}, fallback ke webgl.`, error);
-        await tf.setBackend('webgl');
-      }
-
-      await tf.ready();
-
-      const modelVersion = import.meta.env.VITE_MODEL_VERSION || '1';
-      const cacheSuffix = isDev ? `?v=${Date.now()}` : `?v=${modelVersion}`;
-      const metadataUrl = `/model/metadata.json${cacheSuffix}`;
-      const modelUrl = `/model/model.json${cacheSuffix}`;
-      const requestInit = isDev ? { cache: 'no-store' } : undefined;
-
-      const [metadata, model] = await Promise.all([
-        fetch(metadataUrl, { cache: isDev ? 'no-store' : 'default' }).then((response) => response.json()),
-        tf.loadLayersModel(modelUrl, { requestInit })
-      ]);
-
-      this.model = model;
-      this.labels = Array.isArray(metadata.labels) ? metadata.labels : [];
-      this.modelType = 'custom';
-
+    if (this.model) {
       return { success: true, backend: tf.getBackend() };
-    } catch (error) {
-      console.error('Gagal memuat model:', error);
-      throw error;
     }
+
+    if (this.loadPromise) {
+      return this.loadPromise;
+    }
+
+    this.loadPromise = (async () => {
+      try {
+        let preferredBackend = 'webgl';
+
+        if (navigator.gpu) {
+          preferredBackend = 'webgpu';
+        }
+
+        try {
+          await tf.setBackend(preferredBackend);
+        } catch (error) {
+          console.warn(`Gagal memakai backend ${preferredBackend}, fallback ke webgl.`, error);
+          await tf.setBackend('webgl');
+        }
+
+        await tf.ready();
+
+        const metadataUrl = '/model/metadata.json';
+        const modelUrl = '/model/model.json';
+
+        const [metadataResponse, modelResponse, weightsResponse] = await Promise.all([
+          fetch(metadataUrl, { cache: 'no-store' }),
+          fetch(modelUrl, { cache: 'no-store' }),
+          fetch('/model/weights.bin', { cache: 'no-store' })
+        ]);
+
+        const [metadata, modelJson, weightsBuffer] = await Promise.all([
+          metadataResponse.json(),
+          modelResponse.json(),
+          weightsResponse.arrayBuffer()
+        ]);
+
+        const weightSpecs = Array.isArray(modelJson.weightsManifest)
+          ? modelJson.weightsManifest.flatMap((entry) => entry.weights || [])
+          : [];
+
+        const modelArtifacts = {
+          modelTopology: modelJson.modelTopology,
+          weightSpecs,
+          weightData: weightsBuffer
+        };
+
+        const model = await tf.loadLayersModel(tf.io.fromMemory(modelArtifacts));
+
+        this.model = model;
+        this.labels = Array.isArray(metadata.labels) ? metadata.labels : [];
+        this.modelType = 'custom';
+
+        return { success: true, backend: tf.getBackend() };
+      } catch (error) {
+        this.model = null;
+        console.error('Gagal memuat model:', error);
+        throw error;
+      } finally {
+        this.loadPromise = null;
+      }
+    })();
+
+    return this.loadPromise;
   }
 
   async predict(imageElement) {
