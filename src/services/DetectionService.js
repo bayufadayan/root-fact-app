@@ -10,6 +10,7 @@ export class DetectionService {
 
   async loadModel() {
     try {
+      const isDev = import.meta.env.DEV;
       let preferredBackend = 'webgl';
 
       if (navigator.gpu) {
@@ -25,9 +26,15 @@ export class DetectionService {
 
       await tf.ready();
 
+      const modelVersion = import.meta.env.VITE_MODEL_VERSION || '1';
+      const cacheSuffix = isDev ? `?v=${Date.now()}` : `?v=${modelVersion}`;
+      const metadataUrl = `/model/metadata.json${cacheSuffix}`;
+      const modelUrl = `/model/model.json${cacheSuffix}`;
+      const requestInit = isDev ? { cache: 'no-store' } : undefined;
+
       const [metadata, model] = await Promise.all([
-        fetch('/model/metadata.json').then((response) => response.json()),
-        tf.loadLayersModel('/model/model.json')
+        fetch(metadataUrl, { cache: isDev ? 'no-store' : 'default' }).then((response) => response.json()),
+        tf.loadLayersModel(modelUrl, { requestInit })
       ]);
 
       this.model = model;
